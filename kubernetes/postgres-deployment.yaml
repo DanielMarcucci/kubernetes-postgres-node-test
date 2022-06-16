@@ -1,29 +1,54 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: postgresql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-deployment
 spec:
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
   replicas: 1
   selector:
     matchLabels:
-      app: postgrestest
+      app: postgres
   template:
     metadata:
       labels:
-        app: postgrestest
+        app: postgres
     spec:
       containers:
-      - name: postgrestest
-        image: postgres:alpine
-        resources:
-          limits:
-            memory: "256Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: 5432
-        env:
-          - name: POSTGRES_PASSWORD
-            value: "12345"
+        - name: postgres
+          image: postgres:alpine
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_PASSWORD
+              value: "12345"
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgredb
+      volumes:
+        - name: postgredb
+          persistentVolumeClaim:
+            claimName: postgresql-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -31,7 +56,7 @@ metadata:
   name: postgres-service
 spec:
   selector:
-    app: postgrestest
+    app: postgres
   ports:
     - protocol: TCP
       port: 5432
